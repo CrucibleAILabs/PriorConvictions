@@ -12,6 +12,14 @@ the ways the slot can be taken from you, held hostage, or drained.
 
 Nothing here signs, stakes, or transacts.
 
+> [!IMPORTANT]
+> PriorConvictions is an automated informational and diagnostic tool, not a security audit,
+> certification, or guarantee that a subnet is safe or unsafe. Its results may include false
+> positives, false negatives, incomplete findings, or outdated conclusions. A clean report does
+> not mean that no risk exists. Independently verify the results and do not rely on this tool as
+> the sole basis for any staking, investment, acquisition, custody, governance, or security
+> decision. See the [full disclaimer](#disclaimer).
+
 ---
 
 ## What it checks
@@ -263,6 +271,47 @@ indistinguishable on chain from one who is waiting.
 The gap between those two and a signed deal is what the diligence questions in the report are
 for.
 
+---
+## Disclaimer
+
+PriorConvictions analyzes selected aspects of Bittensor subnet configuration, on-chain state,
+and, when enabled, historical chain data in an attempt to identify security, control, custody,
+economic, and operational risks. It is provided for general informational and diagnostic
+purposes only. It is not a security audit, guarantee, certification, or representation that any
+subnet, transaction, wallet, participant, or proposed acquisition is safe or unsafe, and it is
+not legal, financial, investment, tax, or other professional advice.
+
+The tool may produce false positives, false negatives, incomplete findings, outdated results,
+or incorrect conclusions. Among other things, it may fail to identify vulnerabilities, attack
+paths, ownership or governance risks, configuration issues, economic risks, or other conditions
+that could result in the loss, theft, locking, dilution, impairment, or unauthorized control of
+digital assets. Conversely, a reported condition may not be exploitable and may never result in
+loss. A result stating that no issue was detected means only that the checks performed by that
+version of the tool did not detect one; it does not establish that no issue exists.
+
+Results are point-in-time and depend on the data available to the tool, including the accuracy,
+availability, and completeness of RPC responses, endpoint coverage, archive history, runtime
+metadata, and other third-party infrastructure. Bittensor runtime upgrades, governance actions,
+network conditions, configuration changes, key changes, software updates, or later changes in
+on-chain state may make a result inaccurate or obsolete at any time.
+
+Users are solely responsible for independently verifying all results and conducting appropriate
+technical, security, legal, and financial due diligence before acting. Do not rely on this tool
+as the sole basis for decisions involving subnet ownership, staking, investment, acquisition,
+leasing, custody, governance, operations, security, or digital assets.
+
+To the maximum extent permitted by applicable law, Crucible Labs, its affiliates, and their
+respective contributors, officers, employees, and agents make no warranties regarding the
+accuracy, completeness, reliability, availability, or fitness of the tool or its output and
+accept no responsibility or liability for losses or damages arising from use of, or reliance on,
+the tool or its results. This disclaimer supplements, and does not replace, the warranty
+disclaimer and limitation of liability in the MIT License.
+
+---
+
+## License
+
+MIT
 ---
 
 ## License
