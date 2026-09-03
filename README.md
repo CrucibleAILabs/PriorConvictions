@@ -313,7 +313,3 @@ disclaimer and limitation of liability in the MIT License.
 
 MIT
 ---
-
-## License
-
-MIT
