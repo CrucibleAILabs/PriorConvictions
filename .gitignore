@@ -221,4 +221,10 @@ __marimo__/
 #   python3 subnet_inspector.py <netuid> --json out.json --report out.txt
 *.json
 *.txt
+
+# ...but these are source, not output. The blanket rules above are broad enough
+# to swallow a checked-in config or spec silently -- no error, the file just
+# never gets committed. Add a negation for anything that is meant to be tracked.
+!risk_model.json
+!calibration.json
 *.bak

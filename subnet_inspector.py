@@ -1848,6 +1848,72 @@ def grade(findings: list[Finding]) -> tuple[str, int]:
     return "A", score
 
 
+# --------------------------------------------------------------------------
+# the measured risk model -- risk_model.json, metrics.py, scoring.py
+#
+# grade() above is the ADDITIVE grader this replaces. It sums uncapped severity
+# points, and the heaviest findings are the most common (PENDING_CHILDKEYS
+# fires on 97.7% of subnets, OFF_REGISTER_ALPHA on 90.6%), so a typical subnet
+# collects an F before anything actually wrong is found -- 121 of 128 in the
+# measured sample. Both are printed; they are different numbers and may
+# disagree. Nothing here changes grade(), which stays the headline until the
+# model comes out of draft.
+# --------------------------------------------------------------------------
+
+def score_risk(insp: "Inspector") -> Optional[dict]:
+    """Collect metrics and score them. Never fatal: an unusable model is a
+    missing section, not a failed run."""
+    try:
+        import metrics as M
+        import scoring
+    except ImportError as e:
+        insp.note(f"risk model unavailable: {e}")
+        return None
+    values = M.collect(insp)
+    result = scoring.score(values)
+    # The metrics that could not be read AT ALL, and the ones read as a bound.
+    # Both travel with the result: a score that hides its own coverage is the
+    # same class of mistake as scoring an unusable rule as zero.
+    result["metric_errors"] = values.get("_errors") or []
+    result["bounded_readings"] = [
+        k for k in ("seizure_headroom_locks_known", "owner_lineage_known")
+        if values.get(k) is False]
+    return result
+
+
+def render_risk(risk: dict) -> str:
+    import scoring
+    out = []
+    for prof in risk["profiles"]:
+        out.append(scoring.explain(risk, prof))
+        out.append("")
+    # An axis with no readable rule scores None and is dropped from the
+    # weighted mean, so the overall silently becomes "the other axis". Say so:
+    # on this data source value_decay is entirely indexer-backed, and a grade
+    # that rests on seizability alone must not read as a clean bill of health.
+    blind = sorted({a for p in risk["profiles"].values()
+                    for a, v in p["axes"].items() if v["score"] is None})
+    if blind:
+        out.append(f"  NOT SCORED: {', '.join(blind)} -- no rule on "
+                   f"{'that axis' if len(blind) == 1 else 'those axes'} could be read "
+                   f"from this data source, so the")
+        out.append("  overall above is the remaining axis alone, not a whole-subnet score.")
+        out.append("")
+    if risk.get("bounded_readings"):
+        out.append("  BOUNDS, not readings -- the RPC path cannot see lock state or")
+        out.append("  coldkey swap history, so these were computed from what it can")
+        out.append(f"  see: {', '.join(risk['bounded_readings'])}")
+    if risk.get("metric_errors"):
+        out.append("  metrics not read on this data source:")
+        for e in risk["metric_errors"]:
+            out.append(f"     {e}")
+    out.append("")
+    out.append("  The GRADE line above comes from the OLD additive grader, which")
+    out.append("  has no profile concept. The two above are the measured model.")
+    out.append("  They are different numbers and may disagree.")
+    return "\n".join(out)
+
+
 def render(insp: Inspector) -> None:
     from rich.console import Console
     from rich.table import Table
@@ -2673,6 +2739,8 @@ def parse_args(argv=None):
                    help="how many wallets to trace (about 50 reads each)")
     p.add_argument("--provenance-pace", type=float, default=0.2,
                    help="seconds between historical reads")
+    p.add_argument("--risk", action="store_true",
+                   help="also compute the measured risk model (risk_model.json):\n                         per-axis, per-profile scores with the rules and anchors\n                         that drove them. The headline GRADE printed above it is\n                         the OLD additive grader, which has no profile concept and\n                         puts 121 of 128 subnets in F. Several metrics read history\n                         and are unavailable on this RPC path; they are reported as\n                         uncovered rather than scored as zero")
     p.add_argument("--no-progress", action="store_true",
                    help="suppress the progress bars (they are off already when stderr\n                         is not a terminal)")
     p.add_argument("--json", metavar="PATH", help="write the full report as JSON")
@@ -2690,6 +2758,7 @@ def parse_args(argv=None):
 
 async def run(args) -> int:
     global PROG
+    risk = None
     async with bt.Client(network=args.network) as c:
         insp = Inspector(c, args.netuid, args)
         with RunProgress(args.netuid, enabled=not args.no_progress) as prog:
@@ -2716,10 +2785,23 @@ async def run(args) -> int:
                         f"{len(insp.clusters)} distinct entities")
                 phase("analysis")
                 await analyze(insp)
+                if args.risk:
+                    phase("risk model")
+                    risk = score_risk(insp)
             finally:
                 PROG = None
         render(insp)
-        rep = to_json(insp) if (args.json or args.report or args.report_short) else None
+        want_json = bool(args.json or args.report or args.report_short)
+        rep = to_json(insp) if (want_json or risk is not None) else None
+        if risk is not None:
+            rep["risk"] = risk
+            # Which model produced this grade travels WITH the report. Without
+            # it two saved reports are not comparable once the config changes,
+            # and the config is meant to change.
+            rep["risk_model_version"] = risk.get("model_version")
+            if not want_json:
+                print()
+                print(render_risk(risk))
         if args.json:
             with open(args.json, "w") as fh:
                 json.dump(rep, fh, indent=2, default=str)
