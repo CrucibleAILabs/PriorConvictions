@@ -64,6 +64,9 @@ python3 subnet_inspector.py 38 --provenance --report sn38.txt
 
 # re-render a saved report without touching the network
 python3 subnet_inspector.py --from-json sn4.json --report-short -
+
+# add the measured risk model alongside the finding-count grade
+python3 subnet_inspector.py 4 --risk
 ```
 
 Exits `2` when a CRITICAL finding is present, `0` otherwise — so it drops into a pre-purchase
@@ -78,6 +81,7 @@ checklist or CI without parsing anything.
 | `--report PATH` | plain-English narrative — ownership, holders, key routing, emission, per-finding buyer impact |
 | `--report-short PATH` | the at-a-glance digest alone: the same figures the console prints |
 | `--from-json PATH` | re-render either report from saved JSON, no chain reads |
+| `--risk` | the measured risk model: per-axis, per-profile scores, the rules and anchors that drove them, and what could not be read (see below) |
 
 `PATH` may be `-` for stdout. Progress bars appear on a terminal and disable themselves when
 stderr is redirected, so piped output is unchanged.
@@ -229,6 +233,66 @@ cannot serve it. `mainnet-archive` in the same compose file can. Public archive 
 meter historical reads under their own budget, separate from the storage-scan one, and a full
 trace can exhaust it partway through — which is the other reason `--history-network` is
 something you supply deliberately rather than a default you inherit.
+
+---
+
+## The measured risk model
+
+`--risk` scores the subnet from continuous measurements instead of counting findings.
+
+```bash
+python3 subnet_inspector.py 4 --risk
+```
+
+The `GRADE` on the console view is the additive grader in `grade()`: it sums uncapped severity
+points, and the heaviest findings are the most common — `PENDING_CHILDKEYS` fires on 97.7% of
+subnets, `OFF_REGISTER_ALPHA` on 90.6%, `COALITION_RISK` on 85.9%. A typical subnet collects an F
+before anything actually wrong is found (121 of 128 in the measured sample), while the rare and
+actionable findings — `OWNER_PROXY_RIGHTS` at 9.4%, `VALIDATOR_CONTROL` at 7.0% — carry equal or
+less weight. Both grades print; they are different numbers and may disagree.
+
+| file | what it is |
+|---|---|
+| `risk_model.json` | metrics, rules, per-profile weights, bands and anchors — the whole model |
+| `metrics.py` | extractors: seizure headroom, time to seize, owner flow, post-sale defence, rival accumulation, drain-then-swap, transfer follow-through, miner productivity, participation |
+| `scoring.py` | config-driven scoring; a rule that cannot be evaluated is reported, never scored zero |
+| `calibration.json` | the full-network pass the scales and bands were fitted against |
+
+Four things differ from the grader it replaces:
+
+- **Scores are weighted means, not sums.** Enabling a signal changes the mix rather than
+  inflating the total. The old grader put one subnet at 231 against an F line of 80.
+- **Seizability and value decay are separate axes.** A subnet can be unseizable while the owner
+  exits into your bid, or perfectly healthy and takeable on Tuesday.
+- **Grades are anchored, not percentile.** Percentile bands force a fixed share of subnets into F
+  whatever the network looks like — the mirror image of the bug being fixed. F is reached only by
+  a stated condition: for a buyer, a rival who has *locked* more alpha than the takeover bar.
+  Conviction asymptotes at the locked mass, so mass above the bar crosses it with certainty and
+  only the date is open. Two of 128 subnets qualify.
+- **Recalibration is a data change.** Thresholds, scales and weights live in `risk_model.json`,
+  not in code. Rule weights are still judgment; base rates, scales, bands and anchor thresholds
+  are measured.
+
+### What this path can and cannot score
+
+Most of `value_decay` is measured from history — trades, coldkey swaps, and ~7 days of metagraph
+snapshots — which chain RPC does not serve. Those extractors raise `NeedsIndexer`, and the run
+says so rather than scoring the rule zero:
+
+```
+  value_decay: None   coverage 0/8
+        --  OWNER_DISTRIBUTING               [metric_missing]
+        --  NO_PRODUCTIVE_WORK               [metric_missing]
+  NOT SCORED: value_decay -- no rule on that axis could be read from this data source
+```
+
+Two readings are **bounds rather than measurements** on RPC, and are flagged as such:
+`lock_state` is unavailable, so every holding reads as liquid and seizure headroom is an upper
+bound; `coldkey_swap_history` is unavailable, so an owner's position is counted on the current
+key only and anything held before a swap is invisible.
+
+A grade produced from seizability alone is not a whole-subnet score, and the output says that
+too. Treat `--risk` here as the takeover half of the model.
 
 ---
 
